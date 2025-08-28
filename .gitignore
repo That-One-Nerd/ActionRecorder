@@ -1,0 +1,9 @@
+# Visual Studio Stuff
+.vs/
+
+# Build Projects
+*/bin/
+*/obj/
+
+# Unity Assemblies I can't include :)
+UnityEngine.dll
