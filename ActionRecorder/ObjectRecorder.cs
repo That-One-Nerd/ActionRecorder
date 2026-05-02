@@ -20,6 +20,13 @@ namespace ActionRecorder
                 Debug.LogError("Object recorder missing a unique identifier.");
                 Id = DefaultId();
             }
+            else if (ActionManager.IdExists(Id))
+            {
+                Debug.LogError($"Object recorder ID \"{Id}\" must be unique.");
+                Id = DefaultId();
+            }
+
+            ActionManager.DeclareObject(this);
 
             // TODO: Create recorders for each component.
         }
