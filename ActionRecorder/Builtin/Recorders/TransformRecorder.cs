@@ -7,10 +7,20 @@ namespace ActionRecorder.Builtin.Recorders
     {
         public override FrequencyKind Frequency => FrequencyKind.Update;
 
-        public override TransformInstant RecordInstant(Transform transform) => new TransformInstant(
-            transform.localPosition,
-            transform.localRotation,
-            transform.localScale
-        );
+        public TransformRecorder()
+        {
+            Debug.Log("Hello!");
+        }
+
+        public override TransformInstant RecordInstant(Transform transform)
+        {
+            Debug.Log("Caught in 4K");
+
+            return new TransformInstant(
+                transform.localPosition,
+                transform.localRotation,
+                transform.localScale
+            );
+        }
     }
 }

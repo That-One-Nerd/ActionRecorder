@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using UnityEngine;
 
 namespace ActionRecorder
 {
@@ -31,6 +32,116 @@ namespace ActionRecorder
             objects.Add(recorder.Id, recorder);
         }
         internal static void UndeclareObject(ObjectRecorder recorder) => objects.Remove(recorder.Id);
+
+        #endregion
+
+        #region Assembly Awareness and Type Discovery
+
+        private static readonly List<Assembly> toSearch;
+        static ActionManager()
+        {
+            // Discover types based on automatic assembly searches.
+            AddAssembly(Assembly.GetCallingAssembly(), false);
+            AddAssembly(Assembly.GetEntryAssembly(), false);
+            AddAssembly(Assembly.GetExecutingAssembly(), false);
+
+            RediscoverTypes(false);
+        }
+
+        public static void AddAssembly(Assembly assembly) => AddAssembly(assembly, false);
+        public static void AddAssembly(Assembly assembly, bool discover)
+        {
+            if (assembly is null || toSearch.Contains(assembly)) return;
+            
+            toSearch.Add(assembly);
+            if (discover) RediscoverTypes(false);
+        }
+
+        private static readonly Dictionary<Type, Type> recorders = new Dictionary<Type, Type>();
+        private static readonly Dictionary<Type, Type> instants = new Dictionary<Type, Type>();
+
+        public static void RediscoverTypes() => RediscoverTypes(false);
+        public static void RediscoverTypes(bool clear)
+        {
+            if (clear)
+            {
+                recorders.Clear();
+                instants.Clear();
+            }
+
+            foreach (Assembly asm in toSearch)
+            {
+                var possible = from t in asm.GetTypes()
+                               where t.IsClass && !t.IsAbstract && !t.ContainsGenericParameters
+                               select t;
+
+                // Discover instants
+                foreach ((Type instant, Type baseType) in from t in possible
+                                                          let baseType = derivesFrom(t, typeof(Instant<>))
+                                                          where baseType != null
+                                                          select (t, baseType))
+                {
+                    Type componentType = baseType.GenericTypeArguments[0];
+
+                    if (instants.TryGetValue(componentType, out Type old))
+                    {
+                        if (old == instant) continue; // Already discovered.
+                        else throw new Exception($"More than one instant definition exists for {componentType}!");
+                    }
+                    instants.Add(componentType, instant);
+                }
+
+                // Discover recorders.
+                foreach ((Type recorder, Type baseType) in from t in possible
+                                                           let baseType = derivesFrom(t, typeof(ComponentRecorder<,>))
+                                                           where baseType != null
+                                                           select (t, baseType))
+                {
+                    Type componentType = baseType.GenericTypeArguments[0];
+                    Type instantType = baseType.GenericTypeArguments[1];
+
+                    if (recorders.TryGetValue(componentType, out Type old))
+                    {
+                        if (old == recorder) continue; // Already discovered.
+                        else throw new Exception($"More than one recorder definition exists for {componentType}!");
+                    }
+                    else if (!instants.ContainsKey(instantType)) throw new Exception($"{instantType} is not known! Are you missing an AddAssembly call?");
+
+                    recorders.Add(componentType, recorder);
+                }
+            }
+
+            Type derivesFrom(Type reference, Type baseClass)
+            {
+                // BaseType only goes one layer deep, so this function
+                // iteratively checks parents until it either hits null
+                // or the baseClass.
+
+                // Also, this function does NOT check for generics. That's
+                // intentional for this use case. But, that means the .Equals()
+                // method doesn't work, we have to compare GUIDs.
+
+                while (reference.BaseType != null)
+                {
+                    reference = reference.BaseType;
+                    if (reference.GUID == baseClass.GUID) return reference;
+                }
+                return null;
+            }
+        }
+
+        #endregion
+
+        #region Recorders/Players/Instant Types
+
+        internal static IComponentRecorder CreateRecorder(Component component)
+        {
+            // We expect this method to be called at the correct times.
+            // That is, we assume that when this method is called, no other recorder
+            // has already been instantiated for this particular component instance.
+            if (!recorders.TryGetValue(component.GetType(), out Type recorder)) return null; // No known recorder type found.
+            else return (IComponentRecorder)Activator.CreateInstance(recorder);
+        }
 
         #endregion
     }

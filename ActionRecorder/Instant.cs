@@ -2,9 +2,15 @@
 
 namespace ActionRecorder
 {
-    public abstract class Instant<TComponent>
+    // See comment in ComponentRecorder.
+    internal interface IInstant
+    {
+        double Time { get; }
+    }
+
+    public abstract class Instant<TComponent> : IInstant
         where TComponent : Component
     {
-        public double Time { get; internal set; }
+        public double Time { get; }
     }
 }
