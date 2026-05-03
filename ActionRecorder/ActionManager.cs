@@ -37,7 +37,7 @@ namespace ActionRecorder
 
         #region Assembly Awareness and Type Discovery
 
-        private static readonly List<Assembly> toSearch;
+        private static readonly List<Assembly> toSearch = new List<Assembly>();
         static ActionManager()
         {
             // Discover types based on automatic assembly searches.
@@ -48,7 +48,8 @@ namespace ActionRecorder
             RediscoverTypes(false);
         }
 
-        public static void AddAssembly(Assembly assembly) => AddAssembly(assembly, false);
+        public static void AddAssembly(Type type) => AddAssembly(Assembly.GetAssembly(type));
+        public static void AddAssembly(Assembly assembly) => AddAssembly(assembly, true);
         public static void AddAssembly(Assembly assembly, bool discover)
         {
             if (assembly is null || toSearch.Contains(assembly)) return;
@@ -105,8 +106,6 @@ namespace ActionRecorder
                         if (old == recorder) continue; // Already discovered.
                         else throw new Exception($"More than one recorder definition exists for {componentType}!");
                     }
-                    else if (!instants.ContainsKey(instantType)) throw new Exception($"{instantType} is not known! Are you missing an AddAssembly call?");
-
                     recorders.Add(componentType, recorder);
                 }
             }
@@ -118,13 +117,13 @@ namespace ActionRecorder
                 // or the baseClass.
 
                 // Also, this function does NOT check for generics. That's
-                // intentional for this use case. But, that means the .Equals()
-                // method doesn't work, we have to compare GUIDs.
+                // intentional for this use case.
 
                 while (reference.BaseType != null)
                 {
                     reference = reference.BaseType;
-                    if (reference.GUID == baseClass.GUID) return reference;
+                    Type compare = reference.IsGenericType ? reference.GetGenericTypeDefinition() : reference;
+                    if (compare == baseClass) return reference;
                 }
                 return null;
             }
